@@ -1,11 +1,8 @@
 // Function to create and display the modal on the webpage
 function createPrivacyAnalyzerModal() {
-  // Check if the modal has already been shown in this session
   if (sessionStorage.getItem("privacyAnalyzerShown")) {
-    return; // If the modal has been shown, do not display it again
+      return; // If the modal has been shown, do not display it again
   }
-
-  // Set a flag in sessionStorage to indicate that the modal has been shown
   sessionStorage.setItem("privacyAnalyzerShown", "true");
 
   const overlay = document.createElement("div");
@@ -24,9 +21,9 @@ function createPrivacyAnalyzerModal() {
   modal.style.backgroundColor = "#ffffff";
   modal.style.borderRadius = "10px";
   modal.style.padding = "20px";
-  modal.style.width = "400px";
+  modal.style.width = "80%";
   modal.style.boxShadow = "0 4px 15px rgba(0, 0, 0, 0.2)";
-  modal.style.textAlign = "center"; // Center text in the modal
+  modal.style.textAlign = "center";
   modal.style.overflowY = "auto";
   modal.style.maxHeight = "80vh";
 
@@ -37,50 +34,20 @@ function createPrivacyAnalyzerModal() {
   title.style.color = "#2c3e50";
   modal.appendChild(title);
 
-  // Function to create star rating display
-  function createStarRating(rating) {
-    const starContainer = document.createElement("div");
-    starContainer.style.display = "flex";
-    starContainer.style.justifyContent = "center"; // Center the stars horizontally
-    starContainer.style.marginBottom = "15px"; // Add space below the stars
-
-    for (let i = 1; i <= 5; i++) {
-      const star = document.createElement("span");
-      star.style.fontSize = "24px";
-      star.style.marginRight = "5px";
-      star.style.color = "#e0e0e0"; // Gray color for empty stars by default
-
-      if (i <= Math.floor(rating)) {
-        // Full star
-        star.textContent = "★";
-        star.style.color = "#f1c40f"; // Gold color for full stars
-      } else if (i === Math.ceil(rating) && rating % 1 !== 0) {
-        // Half star
-        star.textContent = "★";
-        star.style.color = "#f1c40f"; // Gold color for half stars
-        star.style.clipPath = "polygon(0 0, 50% 0, 50% 100%, 0 100%)"; // Clip the star to show half
-        star.style.webkitClipPath = "polygon(0 0, 50% 0, 50% 100%, 0 100%)"; // For compatibility with WebKit
-      } else {
-        // Empty star
-        star.textContent = "★";
-      }
-
-      starContainer.appendChild(star);
-    }
-
-    return starContainer;
-  }
-
-  // Placeholder for the star rating
-  const starRatingPlaceholder = document.createElement("div");
-  modal.appendChild(starRatingPlaceholder); // Append the star rating placeholder to the modal
+  // Placeholder for star rating
+  const starRatingContainer = document.createElement("div");
+  starRatingContainer.style.marginBottom = "20px";
+  starRatingContainer.style.fontSize = "24px"; // Size of the stars
+  starRatingContainer.style.color = "#f1c40f"; // Gold color for stars
+  starRatingContainer.style.display = "flex";
+  starRatingContainer.style.justifyContent = "center";
+  modal.appendChild(starRatingContainer);
 
   const contentBox = document.createElement("div");
   contentBox.style.color = "#555";
   contentBox.style.fontSize = "1rem";
   contentBox.style.lineHeight = "1.6";
   contentBox.style.marginBottom = "20px";
-  contentBox.textContent = "Analyzing privacy policy...";
   modal.appendChild(contentBox);
 
   const analyzeButton = document.createElement("button");
@@ -91,53 +58,139 @@ function createPrivacyAnalyzerModal() {
   analyzeButton.style.padding = "10px 20px";
   analyzeButton.style.borderRadius = "5px";
   analyzeButton.style.cursor = "pointer";
-  analyzeButton.style.marginBottom = "15px"; // Add space below the button
+  analyzeButton.style.marginBottom = "15px";
   analyzeButton.onclick = async () => {
-    contentBox.textContent = "Analyzing... Please wait.";
+      contentBox.textContent = "Analyzing... Please wait.";
 
-    try {
-      const policyText = document.body.innerText; // Simplified policy text extraction
-      const response = await fetch("http://localhost:8000/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ policy_text: policyText })
-      });
+      try {
+          const policyText = document.body.innerText; // Simplified policy text extraction
+          const response = await fetch("http://localhost:8000/analyze", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ policy_text: policyText }),
+          });
 
-      const data = await response.json();
-      if (data.error) {
-        contentBox.textContent = `Error: ${data.error}`;
-      } else {
-        // Create the star rating based on the overall rating
-        const overallRating = data.final_rating.rating;
-        const starRating = createStarRating(overallRating);
-        starRatingPlaceholder.innerHTML = ""; // Clear any existing stars
-        starRatingPlaceholder.appendChild(starRating); // Append the new star rating
+          const data = await response.json();
+          if (data.error) {
+              contentBox.textContent = `Error: ${data.error}`;
+          } else {
+              // Display the overall star rating
+              const overallRating = data.final_rating.rating;
+              renderStarRating(starRatingContainer, overallRating);
 
-        let formattedContent = `<strong>Final Rating:</strong> ${overallRating} out of 5<br>${data.final_rating.explanation}`;
-        formattedContent += "<ul>";
-        data.ratings.forEach(item => {
-          formattedContent += `<li><strong>${item.parameter}:</strong> ${item.rating} out of 5<br>${item.explanation}</li>`;
-        });
-        formattedContent += "</ul>";
-        contentBox.innerHTML = formattedContent;
+              const table = document.createElement("table");
+              table.style.width = "100%";
+              table.style.borderCollapse = "collapse";
+              table.style.marginTop = "15px";
 
-        // Show the navigation buttons after the analysis is complete
-        buttonContainer.style.display = "flex";
+              const headerRow = document.createElement("tr");
+
+              const header1 = document.createElement("th");
+              header1.textContent = "Parameter";
+              header1.style.border = "1px solid #ddd";
+              header1.style.padding = "8px";
+              header1.style.backgroundColor = "#f2f2f2";
+              header1.style.textAlign = "left";
+
+              const header2 = document.createElement("th");
+              header2.textContent = "Description";
+              header2.style.border = "1px solid #ddd";
+              header2.style.padding = "8px";
+              header2.style.backgroundColor = "#f2f2f2";
+              header2.style.textAlign = "left";
+
+              const header3 = document.createElement("th");
+              header3.textContent = "Rating";
+              header3.style.border = "1px solid #ddd";
+              header3.style.padding = "8px";
+              header3.style.backgroundColor = "#f2f2f2";
+              header3.style.textAlign = "center";
+
+              const header4 = document.createElement("th");
+              header4.textContent = "Indicator";
+              header4.style.border = "1px solid #ddd";
+              header4.style.padding = "8px";
+              header4.style.backgroundColor = "#f2f2f2";
+              header4.style.textAlign = "center";
+
+              headerRow.appendChild(header1);
+              headerRow.appendChild(header2);
+              headerRow.appendChild(header3);
+              headerRow.appendChild(header4);
+              table.appendChild(headerRow);
+
+              data.ratings.forEach((item) => {
+                  const row = document.createElement("tr");
+
+                  const parameterCell = document.createElement("td");
+                  parameterCell.textContent = item.parameter;
+                  parameterCell.style.border = "1px solid #ddd";
+                  parameterCell.style.padding = "8px";
+
+                  const descriptionCell = document.createElement("td");
+                  descriptionCell.textContent = item.explanation;
+                  descriptionCell.style.border = "1px solid #ddd";
+                  descriptionCell.style.padding = "8px";
+
+                  const ratingCell = document.createElement("td");
+                  ratingCell.textContent = `${item.rating} / 5`;
+                  ratingCell.style.border = "1px solid #ddd";
+                  ratingCell.style.padding = "8px";
+                  ratingCell.style.textAlign = "center";
+
+                  const indicatorCell = document.createElement("td");
+                  indicatorCell.style.border = "1px solid #ddd";
+                  indicatorCell.style.padding = "8px";
+                  indicatorCell.style.textAlign = "center";
+
+                  const dot = document.createElement("span");
+                  dot.style.display = "inline-block";
+                  dot.style.width = "16px";
+                  dot.style.height = "16px";
+                  dot.style.borderRadius = "50%";
+                  dot.style.backgroundColor = getRatingColor(item.rating);
+
+                  indicatorCell.appendChild(dot);
+                  row.appendChild(parameterCell);
+                  row.appendChild(descriptionCell);
+                  row.appendChild(ratingCell);
+                  row.appendChild(indicatorCell);
+                  table.appendChild(row);
+              });
+
+              const finalRatingRow = document.createElement("tr");
+
+              const finalRatingCell1 = document.createElement("td");
+              finalRatingCell1.textContent = "Final Rating";
+              finalRatingCell1.style.border = "1px solid #ddd";
+              finalRatingCell1.style.padding = "8px";
+              finalRatingCell1.style.fontWeight = "bold";
+
+              const finalRatingCell2 = document.createElement("td");
+              finalRatingCell2.colSpan = "3"; // Spans the rest of the columns
+              finalRatingCell2.textContent = `${data.final_rating.rating} out of 5: ${data.final_rating.explanation}`;
+              finalRatingCell2.style.border = "1px solid #ddd";
+              finalRatingCell2.style.padding = "8px";
+
+              finalRatingRow.appendChild(finalRatingCell1);
+              finalRatingRow.appendChild(finalRatingCell2);
+              table.appendChild(finalRatingRow);
+
+              contentBox.innerHTML = ""; // Clear previous content
+              contentBox.appendChild(table);
+          }
+      } catch (error) {
+          contentBox.textContent = `Error: ${error.message}`;
       }
-    } catch (error) {
-      contentBox.textContent = `Error: ${error.message}`;
-    }
   };
   modal.appendChild(analyzeButton);
 
-  // Create a container for the navigation buttons
+  // Create container for buttons
   const buttonContainer = document.createElement("div");
-  buttonContainer.style.display = "none"; // Hidden by default
-  buttonContainer.style.marginTop = "20px";
   buttonContainer.style.display = "flex";
   buttonContainer.style.justifyContent = "space-between";
+  buttonContainer.style.marginTop = "20px";
 
-  // "Proceed to Website" button
   const proceedButton = document.createElement("button");
   proceedButton.textContent = "Proceed to Website";
   proceedButton.style.backgroundColor = "#27ae60";
@@ -148,34 +201,70 @@ function createPrivacyAnalyzerModal() {
   proceedButton.style.cursor = "pointer";
   proceedButton.style.marginRight = "10px";
   proceedButton.onclick = () => {
-    overlay.remove(); // Close the modal and allow the user to browse the website
+      overlay.remove();
   };
+
+  const googleButton = document.createElement("button");
+  googleButton.textContent = "Go to Google Homepage";
+  googleButton.style.backgroundColor = "#e74c3c";
+  googleButton.style.color = "#fff";
+  googleButton.style.border = "none";
+  googleButton.style.padding = "10px 20px";
+  googleButton.style.borderRadius = "5px";
+  googleButton.style.cursor = "pointer";
+  googleButton.onclick = () => {
+      window.location.href = "https://www.google.com"; // Navigate to Google in the current tab
+  };
+
   buttonContainer.appendChild(proceedButton);
-
-  // "Go to Chrome Home" button
-  const goHomeButton = document.createElement("button");
-  goHomeButton.textContent = "Go to Chrome Home";
-  goHomeButton.style.backgroundColor = "#e74c3c";
-  goHomeButton.style.color = "#fff";
-  goHomeButton.style.border = "none";
-  goHomeButton.style.padding = "10px 20px";
-  goHomeButton.style.borderRadius = "5px";
-  goHomeButton.style.cursor = "pointer";
-  goHomeButton.onclick = () => {
-    // Use chrome.tabs API to navigate to Chrome home page
-    chrome.runtime.sendMessage({ action: "goToHomePage" }, () => {
-      overlay.remove(); // Remove the modal
-    });
-  };
-  buttonContainer.appendChild(goHomeButton);
-
-  // Append the button container to the modal
+  buttonContainer.appendChild(googleButton);
   modal.appendChild(buttonContainer);
 
-  // Append the modal to the overlay and the overlay to the document body
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 }
 
-// Run the modal when the content script is loaded
+// Function to render the star rating
+function renderStarRating(container, rating) {
+  container.innerHTML = ""; // Clear existing stars
+
+  for (let i = 1; i <= 5; i++) {
+      const star = document.createElement("span");
+      star.textContent = "★";
+      star.style.fontSize = "30px"; // Adjust star size
+      star.style.margin = "0 5px"; // Add spacing between stars
+      star.style.display = "inline-block";
+      star.style.position = "relative";
+      star.style.color = "#e0e0e0"; // Default color for empty stars
+
+      if (i <= Math.floor(rating)) {
+          // Fully filled star
+          star.style.color = "#f1c40f"; // Gold for full stars
+      } else if (i === Math.ceil(rating) && rating % 1 !== 0) {
+          // Half star
+          const halfStar = document.createElement("span");
+          halfStar.textContent = "★";
+          halfStar.style.position = "absolute";
+          halfStar.style.left = "0";
+          halfStar.style.width = "50%";
+          halfStar.style.overflow = "hidden";
+          halfStar.style.color = "#f1c40f"; // Gold for half-filled part
+          star.appendChild(halfStar);
+      }
+
+      container.appendChild(star);
+  }
+}
+
+// Function to determine dot color based on the rating
+function getRatingColor(rating) {
+  if (rating >= 4) {
+      return "green"; // Green for ratings 4-5
+  } else if (rating >= 2) {
+      return "yellow"; // Yellow for ratings 2-3
+  } else {
+      return "red"; // Red for rating 1
+  }
+}
+
 createPrivacyAnalyzerModal();
