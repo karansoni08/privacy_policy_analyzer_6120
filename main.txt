@@ -1,0 +1,167 @@
+Accepts text data (privacy policy) from a Chrome extension.
+Processes the text using an AI model (Ollama via subprocess).
+Returns an analysis with ratings for various parameters like "Data Collection" and "Policy Clarity."
+
+Imports and Logging
+
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import subprocess
+import json
+import logging
+import re
+
+Flask: Framework to create the web server.
+request, jsonify: Handle incoming requests and send JSON responses.
+CORS: Allows cross-origin requests from the Chrome extension.
+subprocess: Runs commands (in this case, the AI model) in the system shell.
+json: Handles JSON data formatting and parsing.
+logging: Used for debugging by printing messages in the console.
+re: Provides regular expression support for text processing.
+
+Setup and Configuration:
+logging.basicConfig(level=logging.INFO)
+app = Flask(__name__)
+CORS(app)  # Enable CORS to allow requests from your Chrome extension
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB limit
+
+logging.basicConfig: Configures logging to display messages at the "INFO" level or higher.
+app = Flask(__name__): Creates a Flask app to handle HTTP requests.
+CORS(app): Enables Cross-Origin Resource Sharing, allowing the extension to interact with this server.
+app.config['MAX_CONTENT_LENGTH']: Restricts the maximum size of incoming requests to 16 MB to prevent overload.
+
+
+Extract JSON from Text:
+def extract_json_from_text(text):
+    match = re.search(r'{.*}', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
+    return None
+
+Purpose: Parses JSON data embedded in plain text (e.g., model output).
+re.search: Finds the first occurrence of text enclosed in curly braces ({}).
+json.loads: Converts the matched JSON string into a Python dictionary.
+Error Handling:
+If the JSON is invalid, returns None.
+
+Run the Analysis with Ollama:
+def analyze_with_ollama(policy_text):
+    prompt = """Provide a structured JSON output with individual ratings and explanations for each of the following parameters, as well as a final rating and explanation:
+    {
+        "ratings": {
+            "Data Collection": {
+                "rating": <rating out of 5>,
+                "explanation": <explanation for the rating>
+            },
+            ...
+        },
+        "final_rating": {
+            "rating": <overall rating out of 5>,
+            "explanation": <explanation for the final rating>
+        }
+    }
+    """
+
+prompt: A detailed instruction sent to the AI model. It asks for a structured JSON response with ratings and explanations for specific privacy parameters.
+
+    full_text = prompt + "\n" + policy_text
+
+    result = subprocess.run(
+        ["ollama", "run", "llama3"],
+        input=full_text,
+        capture_output=True,
+        text=True
+    )
+full_text: Combines the prompt and the policy text.
+subprocess.run: Executes the ollama command in the system shell:
+"ollama", "run", "llama3": Runs the model named "llama3."
+input=full_text: Passes the combined prompt and policy text to the model.
+capture_output=True: Captures the model's output.
+text=True: Ensures the output is handled as a string.
+
+
+
+    logging.info(f"Ollama Output: {result.stdout}")
+
+    if result.returncode != 0:
+        logging.error(f"Error running Ollama: {result.stderr}")
+        return {"error": f"Error running Ollama: {result.stderr}"}
+logging.info: Logs the model's output for debugging.
+result.returncode: Checks if the model ran successfully:
+If not (returncode != 0), logs an error and returns it as a response.
+
+
+Parse and Structure the Output:
+
+    analysis = extract_json_from_text(result.stdout)
+    if analysis:
+        structured_response = {
+            "ratings": [
+                {
+                    "parameter": "Data Collection",
+                    "rating": analysis["ratings"]["Data Collection"]["rating"],
+                    "explanation": analysis["ratings"]["Data Collection"]["explanation"]
+                },
+                ...
+            ],
+            "final_rating": {
+                "rating": analysis["final_rating"]["rating"],
+                "explanation": analysis["final_rating"]["explanation"]
+            }
+        }
+        return structured_response
+
+extract_json_from_text: Attempts to parse the model's output as JSON.
+structured_response: Reformats the parsed JSON into a simpler structure with:
+Ratings for each parameter.
+
+A final overall rating and explanation.
+
+    logging.error(f"Unexpected non-JSON output from Ollama: {result.stdout}")
+    return {"error": "Failed to parse JSON output from Ollama"}
+Error Handling: If JSON extraction fails, logs the issue and returns an error message.
+
+
+Route to Analyze Text:
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    data = request.get_json()
+    policy_text = data.get("policy_text", "")
+
+    if not policy_text:
+        return jsonify({"error": "No policy text provided"}), 400
+@app.route('/analyze'): Defines the /analyze endpoint for POST requests.
+request.get_json: Extracts JSON data sent in the request.
+
+Error Handling:
+If policy_text is empty, responds with a 400 Bad Request error.
+
+    result = analyze_with_ollama(policy_text)
+
+    if "error" in result:
+        return jsonify(result), 500
+analyze_with_ollama: Calls the function to process the policy text.
+
+Error Handling: If the analysis fails, responds with a 500 Internal Server Error.
+    logging.info(f"Backend response: {result}")
+    return jsonify(result)
+logging.info: Logs the successful response for debugging.
+jsonify(result): Sends the analysis as a JSON response to the client.
+
+Run the Server
+if __name__ == "__main__":
+    app.run(port=8000, debug=True)
+if __name__ == "__main__": Ensures this script runs as the main program.
+app.run(port=8000, debug=True): Starts the Flask server:
+Listens on port 8000.
+debug=True: Enables automatic server reloads for code changes.
+
+How it Works
+The Chrome extension sends a POST request with a privacy policy text.
+The Flask server processes the text:
+Sends it to an AI model (Ollama) for analysis.
+Reformats the AI's output into structured JSON.
+The server responds with ratings and explanations.
